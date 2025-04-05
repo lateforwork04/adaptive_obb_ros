@@ -1,18 +1,19 @@
 #include "adaptive_obb/adaptive_obb.h"
 
-#include <limits>
-
-#include <pcl/common/centroid.h>
 #include <pcl/common/pca.h>
-#include <pcl/filters/voxel_grid.h>
+#include <pcl/common/centroid.h>
 #include <pcl/point_cloud.h>
 #include <pcl/surface/convex_hull.h>
+#include <pcl/filters/voxel_grid.h>
+
 #include <ros/ros.h>
 
-void AdaptiveObb::computeBounds(
-    Eigen::Vector3d& min_val, Eigen::Vector3d& max_val,
-    const Eigen::Vector3d& offset, const Eigen::Matrix3d& rot_w2b,
-    const pcl::PointCloud<pcl::PointXYZI>::Ptr pointcloud) {
+#include <limits>
+
+void AdaptiveObb::computeBounds(Eigen::Vector3d& min_val, Eigen::Vector3d& max_val,
+                                const Eigen::Vector3d& offset, const Eigen::Matrix3d& rot_w2b,
+                                const pcl::PointCloud<pcl::PointXYZI>::Ptr pointcloud)
+{
   double inf = std::numeric_limits<double>::max();
 
   min_val = Eigen::Vector3d::Ones() * inf;
@@ -29,21 +30,19 @@ void AdaptiveObb::computeBounds(
   }
 }
 
-double AdaptiveObb::computeVolume(
-    const Eigen::Matrix3d& rot_w2b,
-    const pcl::PointCloud<pcl::PointXYZI>::Ptr pointcloud) {
+double AdaptiveObb::computeVolume(const Eigen::Matrix3d& rot_w2b,
+                                  const pcl::PointCloud<pcl::PointXYZI>::Ptr pointcloud)
+{
   Eigen::Vector3d min_val;
   Eigen::Vector3d max_val;
 
-  computeBounds(min_val, max_val, Eigen::Vector3d::Zero().eval(), rot_w2b,
-                pointcloud);
+  computeBounds(min_val, max_val, Eigen::Vector3d::Zero().eval(), rot_w2b, pointcloud);
 
-  return (max_val[0] - min_val[0]) * (max_val[1] - min_val[1]) *
-         (max_val[2] - min_val[2]);
+  return (max_val[0] - min_val[0]) * (max_val[1] - min_val[1]) * (max_val[2] - min_val[2]);
 }
 
-bool AdaptiveObb::rotationsSafetyCheck(Eigen::Matrix3d& rot_w2b,
-                                       Eigen::Vector3d& eig_val) {
+bool AdaptiveObb::rotationsSafetyCheck(Eigen::Matrix3d& rot_w2b, Eigen::Vector3d& eig_val)
+{
   if (abs(rot_w2b(2, 0)) > 0.8) {
     // To avoid the problem of gimbal lock, the rot_w2b is modified s.t
     // new x axis <- old y axis
@@ -51,7 +50,9 @@ bool AdaptiveObb::rotationsSafetyCheck(Eigen::Matrix3d& rot_w2b,
     // new z axis <- old x axis
     // Note: row vectors
     Eigen::Matrix3d rot_swap;
-    rot_swap << 0, 1, 0, 0, 0, 1, 1, 0, 0;
+    rot_swap << 0, 1, 0, 
+                0, 0, 1, 
+                1, 0, 0;
 
     rot_w2b = rot_swap * rot_w2b;
     eig_val = rot_swap * eig_val;
@@ -60,68 +61,64 @@ bool AdaptiveObb::rotationsSafetyCheck(Eigen::Matrix3d& rot_w2b,
   return false;
 }
 
-void AdaptiveObb::computeVarianceInReferenceFrame(
-    Eigen::Vector3d& variance,
-    const pcl::PointCloud<pcl::PointXYZI>::Ptr pointcloud,
-    const Eigen::Matrix3d& rot_w2b) {
-  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-  transform.topLeftCorner(3, 3) = rot_w2b.cast<float>();
+void AdaptiveObb::computeVarianceInReferenceFrame(Eigen::Vector3d& variance, const pcl::PointCloud<pcl::PointXYZI>::Ptr pointcloud, const Eigen::Matrix3d& rot_w2b) {
 
-  pcl::PointCloud<pcl::PointXYZI>::Ptr transformed_cloud(
-      new pcl::PointCloud<pcl::PointXYZI>());
+    Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+    transform.topLeftCorner(3, 3) = rot_w2b.cast<float>();
 
-  pcl::transformPointCloud(*pointcloud, *transformed_cloud, transform);
+    pcl::PointCloud<pcl::PointXYZI>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZI> ());
+  
+    pcl::transformPointCloud(*pointcloud, *transformed_cloud, transform);
 
-  Eigen::Vector4f centroid_out;
-  pcl::compute3DCentroid(*transformed_cloud, centroid_out);
+    Eigen::Vector4f centroid_out;
+    pcl::compute3DCentroid(*transformed_cloud, centroid_out);
 
-  Eigen::Matrix3f covariance_matrix;
-  computeCovarianceMatrix(*transformed_cloud, centroid_out, covariance_matrix);
+    Eigen::Matrix3f covariance_matrix;
+    computeCovarianceMatrix(*transformed_cloud, centroid_out, covariance_matrix); 
 
-  variance << covariance_matrix(0, 0), covariance_matrix(1, 1),
-      covariance_matrix(2, 2);
+    variance << covariance_matrix(0,0), covariance_matrix(1,1), covariance_matrix(2,2);
 
-  variance = variance / (pointcloud->size() - 1.0);
+    variance = variance / (pointcloud->size() - 1.0);
 }
 
 void AdaptiveObb::constructBoundingBox(const Eigen::Vector3d& pos,
-                                       Eigen::Vector3d& min_val,
-                                       Eigen::Vector3d& max_val,
-                                       Eigen::Vector3d& rotations,
-                                       Eigen::Vector3d& mean_val,
-                                       Eigen::Vector3d& std_val) {
+                                        Eigen::Vector3d& min_val,
+                                        Eigen::Vector3d& max_val,
+                                        Eigen::Vector3d& rotations,
+                                        Eigen::Vector3d& mean_val,
+                                        Eigen::Vector3d& std_val)
+{
   // TODO:
-  // For now surface points in line of sight of the robot are used to construct
-  // the bounding box. This may be an issue in
+  // For now surface points in line of sight of the robot are used to construct the bounding box. This may be
+  // an issue in
   // 1. Open space -> possible solution: sample endpoint and unknown voxels
-  // 2. Narrow (highly non-convex) environments -> possible solution: random
-  // reflection model
+  // 2. Narrow (highly non-convex) environments -> possible solution: random reflection model
   //      - Issue is now less important after changing bound computations
+
 
   ros::Time getlocalpcl_time;
   // Get local pointcloud
-  pcl::PointCloud<pcl::PointXYZI>* local_cloud =
-      new pcl::PointCloud<pcl::PointXYZI>();
+  pcl::PointCloud<pcl::PointXYZI>* local_cloud = new pcl::PointCloud<pcl::PointXYZI>();
   pcl::PointCloud<pcl::PointXYZI>::Ptr local_cloud_ptr(local_cloud);
 
   START_TIMER(getlocalpcl_time);
-  map_manager_->getLocalPointcloud(pos, local_pointcloud_range_, 0,
-                                   *local_cloud, false);
-  ROS_INFO_COND(global_verbosity >= Verbosity::INFO, "getLocalPointcloud time: %f", GET_ELAPSED_TIME(getlocalpcl_time));
+  map_manager_->getLocalPointcloud(pos, local_pointcloud_range_, 0, *local_cloud, false);
+  ROS_INFO("getLocalPointcloud time: %f", GET_ELAPSED_TIME(getlocalpcl_time));
   // Filter cloud to reduce effect of error sources from uneven density
-  pcl::PointCloud<pcl::PointXYZI>* local_filtered =
-      new pcl::PointCloud<pcl::PointXYZI>();
+  pcl::PointCloud<pcl::PointXYZI>* local_filtered = new pcl::PointCloud<pcl::PointXYZI>();
   pcl::PointCloud<pcl::PointXYZI>::Ptr local_filtered_ptr(local_filtered);
 
   pcl::VoxelGrid<pcl::PointXYZI> voxel_filter;
   voxel_filter.setInputCloud(local_cloud_ptr);
-  voxel_filter.setLeafSize(voxel_filter_leaf_size_, voxel_filter_leaf_size_,
-                           voxel_filter_leaf_size_);
+  voxel_filter.setLeafSize(voxel_filter_leaf_size_, voxel_filter_leaf_size_, voxel_filter_leaf_size_);
   voxel_filter.filter(*local_filtered);
+
+  current_local_pcl_ = local_filtered_ptr;
 
   // Compute rotation matrix depending on selected method
   Eigen::Matrix3d rot_w2b;
   Eigen::Vector3d variance;
+  
 
   if (type_ == AdaptiveObbType::kPca) {
     // Matrix constructed from the vectors of the principal component analysis
@@ -130,12 +127,40 @@ void AdaptiveObb::constructBoundingBox(const Eigen::Vector3d& pos,
     pca.setInputCloud(local_filtered_ptr);
     rot_w2b = pca.getEigenVectors().cast<double>();
     rot_w2b = rot_w2b / rot_w2b.determinant();  // Ensure right-handedness
-    rot_w2b.transposeInPlace();  // For the matrix to be body to world, the
-                                 // vector is tranposed
-
+    rot_w2b.transposeInPlace(); // For the matrix to be body to world, the vector is tranposed 
+    
     double cloud_size = local_filtered->size();
-    variance = pca.getEigenValues().cast<double>() / (cloud_size - 1);
+    variance = pca.getEigenValues().cast<double>()/(cloud_size - 1);
     variance.cwiseAbs();
+  }
+  else if (type_ == AdaptiveObbType::kMvbb) {
+    // Minimum volume bounding box, any orientation
+
+    // Compute convex hull to speed up obj function call
+    pcl::PointCloud<pcl::PointXYZI>* chull_points = new pcl::PointCloud<pcl::PointXYZI>();
+    pcl::PointCloud<pcl::PointXYZI>::Ptr chull_ptr(chull_points);
+
+    pcl::ConvexHull<pcl::PointXYZI> chull;
+    chull.setInputCloud(local_cloud_ptr);
+    chull.reconstruct(*chull_points);
+
+    // Prepare objective function
+    boost::function<double(const Eigen::Matrix3d&)> objFun(
+      boost::bind(&AdaptiveObb::computeVolume, this, _1, chull_ptr));
+
+    // Run genetic algotihm
+    rot_w2b = ga_manager_.runGeneticAlgorithm(objFun);
+    computeVarianceInReferenceFrame(variance, local_filtered_ptr, rot_w2b);
+  }
+  else if (type_ == AdaptiveObbType::kAabb) {
+    // Axis aligned bounding box
+    rot_w2b = Eigen::Matrix3d::Identity();
+    computeVarianceInReferenceFrame(variance, local_filtered_ptr, rot_w2b);
+  }
+  else {
+    ROS_WARN("[AdaptiveObb] Invalid bounding box type. Selecting AABB.");
+    rot_w2b = Eigen::Matrix3d::Identity();
+    computeVarianceInReferenceFrame(variance, local_filtered_ptr, rot_w2b);
   }
 
   // Change to a representation convertible to euler angles
@@ -147,25 +172,38 @@ void AdaptiveObb::constructBoundingBox(const Eigen::Vector3d& pos,
   pcl::compute3DCentroid(*local_filtered, centroid_out);
 
   Eigen::Vector3d pos_c = centroid_out.head(3).cast<double>();
-  Eigen::Vector3d offset = rot_w2b * (pos_c - pos);
+  Eigen::Vector3d offset = rot_w2b*(pos_c - pos);
   // Eigen::Vector3d offset = Eigen::Vector3d::Zero();
-
-  // Compute bounds by using standard deviation in each direction of the
-  // reference frame
+  
+  // Compute bounds by using standard deviation in each direction of the reference frame
   Eigen::Vector3d sigma = variance.cwiseSqrt();
   double sigma_max = sigma.maxCoeff();
+  ROS_INFO_STREAM("Sigma: " << sigma.transpose());
 
-  min_val = offset - sigma / sigma_max * bounding_box_size_max_ / 2;
-  max_val = offset + sigma / sigma_max * bounding_box_size_max_ / 2;
+  min_val = offset - sigma/sigma_max*bounding_box_size_max_/2;
+  max_val = offset + sigma/sigma_max*bounding_box_size_max_/2;
 
   rotations = rot_w2b.eulerAngles(2, 1, 0);
 
   // Scaling parameter for sample distributions
-  std_val = sigma / sigma_max * distribution_scaling_max_;
+  std_val = sigma/sigma_max*distribution_scaling_max_;
   mean_val = Eigen::Vector3d::Zero();
+
+  // Temporary euler angles check + print
+  // Eigen::Matrix3d rot_W2Bcheck;
+  // rot_W2Bcheck = Eigen::AngleAxisd(rotations[0], Eigen::Vector3d::UnitZ()) *
+  //                Eigen::AngleAxisd(rotations[1], Eigen::Vector3d::UnitY()) *
+  //                Eigen::AngleAxisd(rotations[2], Eigen::Vector3d::UnitX());
+
+  // ROS_INFO_STREAM("Rot mat: " << rot_w2b.determinant() << "\n" << rot_w2b);
+  // ROS_INFO_STREAM("Rot mat check: " << rot_W2Bcheck.determinant() << "\n " << rot_W2Bcheck);
+  // ROS_INFO_STREAM("min: " << min_val.transpose());
+  // ROS_INFO_STREAM("max: " << max_val.transpose());
+  // ROS_INFO_STREAM("EulerZYX: " << rotations.transpose());
 }
 
-bool AdaptiveObb::loadParams(std::string ns) {
+bool AdaptiveObb::loadParams(std::string ns)
+{
   ROSPARAM_INFO("Loading: " + ns);
   std::string param_name;
 
@@ -208,5 +246,37 @@ bool AdaptiveObb::loadParams(std::string ns) {
     ROSPARAM_WARN(param_name, voxel_filter_leaf_size_);
   }
 
+  if (type_ == AdaptiveObbType::kMvbb) {
+    GeneticAlgorithmParams param_vals;
+    param_name = ns + "/max_iter_genetic_algorithm";
+    if (!ros::param::get(param_name, param_vals.max_iter_ga)) {
+      param_vals.max_iter_ga = 100;
+      ROSPARAM_WARN(param_name, param_vals.max_iter_ga);
+    }
+
+    param_name = ns + "/max_iter_nelder_mead";
+    if (!ros::param::get(param_name, param_vals.max_iter_nm)) {
+      param_vals.max_iter_nm = 20;
+      ROSPARAM_WARN(param_name, param_vals.max_iter_nm);
+    }
+
+    param_name = ns + "/population_size";
+    if (!ros::param::get(param_name, param_vals.pop_size)) {
+      param_vals.pop_size = 10;
+      ROSPARAM_WARN(param_name, param_vals.pop_size);
+    }
+
+    param_name = ns + "/tol_termination";
+    if (!ros::param::get(param_name, param_vals.tol)) {
+      param_vals.tol = 1e-2;
+      ROSPARAM_WARN(param_name, param_vals.tol);
+    }
+    param_name = ns + "/tol_iter";
+    if (!ros::param::get(param_name, param_vals.tol_iter)) {
+      param_vals.tol_iter = 5;
+      ROSPARAM_WARN(param_name, param_vals.tol_iter);
+    }
+    ga_manager_.setParams(param_vals);
+  }
   return true;
 }
