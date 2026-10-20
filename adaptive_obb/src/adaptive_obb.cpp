@@ -1,4 +1,5 @@
 #include "adaptive_obb/adaptive_obb.h"
+#include <functional>
 
 #include <pcl/common/pca.h>
 #include <pcl/common/centroid.h>
@@ -147,7 +148,7 @@ void AdaptiveObb::constructBoundingBox(const Eigen::Vector3d& pos,
 
     // Prepare objective function
     boost::function<double(const Eigen::Matrix3d&)> objFun(
-      boost::bind(&AdaptiveObb::computeVolume, this, _1, chull_ptr));
+      std::bind(&AdaptiveObb::computeVolume, this, std::placeholders::_1, chull_ptr));
 
     // Run genetic algotihm
     rot_w2b = ga_manager_.runGeneticAlgorithm(objFun);
