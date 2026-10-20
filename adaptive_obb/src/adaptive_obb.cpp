@@ -6,7 +6,8 @@
 #include <pcl/surface/convex_hull.h>
 #include <pcl/filters/voxel_grid.h>
 
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
+#include "planner_common/ros2_compat.h"
 
 #include <limits>
 
@@ -96,7 +97,7 @@ void AdaptiveObb::constructBoundingBox(const Eigen::Vector3d& pos,
   //      - Issue is now less important after changing bound computations
 
 
-  ros::Time getlocalpcl_time;
+  TIMER getlocalpcl_time;
   // Get local pointcloud
   pcl::PointCloud<pcl::PointXYZI>* local_cloud = new pcl::PointCloud<pcl::PointXYZI>();
   pcl::PointCloud<pcl::PointXYZI>::Ptr local_cloud_ptr(local_cloud);
@@ -210,7 +211,7 @@ bool AdaptiveObb::loadParams(std::string ns)
   std::string parse_str;
 
   param_name = ns + "/type";
-  ros::param::get(param_name, parse_str);
+  planner_common::param::get(param_name, parse_str);
   if (!parse_str.compare("kPca"))
     type_ = AdaptiveObbType::kPca;
   else if (!parse_str.compare("kMvbb"))
@@ -223,25 +224,25 @@ bool AdaptiveObb::loadParams(std::string ns)
   }
 
   param_name = ns + "/local_pointcloud_range";
-  if (!ros::param::get(param_name, local_pointcloud_range_)) {
+  if (!planner_common::param::get(param_name, local_pointcloud_range_)) {
     local_pointcloud_range_ = 15.0;
     ROSPARAM_WARN(param_name, local_pointcloud_range_);
   }
 
   param_name = ns + "/bounding_box_size_max";
-  if (!ros::param::get(param_name, bounding_box_size_max_)) {
+  if (!planner_common::param::get(param_name, bounding_box_size_max_)) {
     bounding_box_size_max_ = 30.0;
     ROSPARAM_WARN(param_name, bounding_box_size_max_);
   }
 
   param_name = ns + "/distribution_scaling_max";
-  if (!ros::param::get(param_name, distribution_scaling_max_)) {
+  if (!planner_common::param::get(param_name, distribution_scaling_max_)) {
     distribution_scaling_max_ = 10.0;
     ROSPARAM_WARN(param_name, distribution_scaling_max_);
   }
 
   param_name = ns + "/voxel_filter_leaf_size";
-  if (!ros::param::get(param_name, voxel_filter_leaf_size_)) {
+  if (!planner_common::param::get(param_name, voxel_filter_leaf_size_)) {
     voxel_filter_leaf_size_ = 1.0;
     ROSPARAM_WARN(param_name, voxel_filter_leaf_size_);
   }
@@ -249,30 +250,30 @@ bool AdaptiveObb::loadParams(std::string ns)
   if (type_ == AdaptiveObbType::kMvbb) {
     GeneticAlgorithmParams param_vals;
     param_name = ns + "/max_iter_genetic_algorithm";
-    if (!ros::param::get(param_name, param_vals.max_iter_ga)) {
+    if (!planner_common::param::get(param_name, param_vals.max_iter_ga)) {
       param_vals.max_iter_ga = 100;
       ROSPARAM_WARN(param_name, param_vals.max_iter_ga);
     }
 
     param_name = ns + "/max_iter_nelder_mead";
-    if (!ros::param::get(param_name, param_vals.max_iter_nm)) {
+    if (!planner_common::param::get(param_name, param_vals.max_iter_nm)) {
       param_vals.max_iter_nm = 20;
       ROSPARAM_WARN(param_name, param_vals.max_iter_nm);
     }
 
     param_name = ns + "/population_size";
-    if (!ros::param::get(param_name, param_vals.pop_size)) {
+    if (!planner_common::param::get(param_name, param_vals.pop_size)) {
       param_vals.pop_size = 10;
       ROSPARAM_WARN(param_name, param_vals.pop_size);
     }
 
     param_name = ns + "/tol_termination";
-    if (!ros::param::get(param_name, param_vals.tol)) {
+    if (!planner_common::param::get(param_name, param_vals.tol)) {
       param_vals.tol = 1e-2;
       ROSPARAM_WARN(param_name, param_vals.tol);
     }
     param_name = ns + "/tol_iter";
-    if (!ros::param::get(param_name, param_vals.tol_iter)) {
+    if (!planner_common::param::get(param_name, param_vals.tol_iter)) {
       param_vals.tol_iter = 5;
       ROSPARAM_WARN(param_name, param_vals.tol_iter);
     }
